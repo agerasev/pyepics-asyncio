@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "pyepics-asyncio"
+version = "0.1.0"
+description = "PyEpics with async/await"
+authors = ["Alexey Gerasev <alexey.gerasev@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pyepics = "^3.5.1"
+
+[tool.poetry.dev-dependencies]
+black = "^22.1.0"
+mypy = "^0.942"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 128
+
+[tool.mypy]
+strict = true
