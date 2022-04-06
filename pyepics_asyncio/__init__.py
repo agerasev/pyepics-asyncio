@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, AsyncGenerator, AsyncContextManager
+from typing import Any, AsyncGenerator, AsyncContextManager, Optional, Type
 
 from dataclasses import dataclass
 
@@ -93,7 +93,7 @@ class _PvMonitorGenerator(AsyncGenerator[Any, None]):
         self._done = False
 
     def _callback(self, value: Any = None, **kw: Any) -> None:
-        if not self.loop.is_closed():
+        if not self.loop.is_closed() and not self._done:
             self.loop.call_soon_threadsafe(lambda: self._queue.put_nowait(value))
 
     def _cancel(self) -> None:
@@ -118,8 +118,22 @@ class _PvMonitorGenerator(AsyncGenerator[Any, None]):
     async def asend(self, value: Any) -> Any:
         return await self.__anext__()
 
-    async def athrow(self, *args: Any, **kw: Any) -> Any:
-        return await self.__anext__()
+    async def athrow(
+        self,
+        exc_type: BaseException | Type[BaseException],
+        exc_value: Optional[object] = None,
+        *args: Any,
+        **kws: Any,
+    ) -> Any:
+        if not self._done:
+            self._cancel()
+            if isinstance(exc_type, BaseException):
+                raise exc_type
+            elif exc_value is not None:
+                assert isinstance(exc_value, BaseException)
+                raise exc_value
+            else:
+                raise exc_type()
 
 
 @dataclass
