@@ -1,7 +1,5 @@
 from __future__ import annotations
-from typing import Any, AsyncGenerator, AsyncContextManager, Optional, Type
-
-from dataclasses import dataclass
+from typing import Any, AsyncIterable, AsyncIterator, TypeVar
 
 import asyncio
 from asyncio import AbstractEventLoop, Future, Queue
@@ -9,24 +7,12 @@ from asyncio import AbstractEventLoop, Future, Queue
 import epics  # type: ignore
 
 
-class Pv:
+class PvBase:
     def __init__(self, raw: epics.PV) -> None:
         self.raw = raw
 
-    @staticmethod
-    def connect(name: str) -> _PvConnectFuture:
-        return _PvConnectFuture(name)
-
-    async def get(self) -> Any:
-        return self.raw.get(use_monitor=True)
-
-    def put(self, value: Any) -> _PvPutFuture:
-        return _PvPutFuture(self, value)
-
-    # By default values are yielded only on update.
-    # If you need monitor to also provide current value on start set `current=True`.
-    def monitor(self, current: bool = False) -> _PvMonitorContextManager:
-        return _PvMonitorContextManager(self, current)
+    def put(self, value: Any) -> _PutFuture:
+        return _PutFuture(self, value)
 
     @property
     def name(self) -> str:
@@ -39,36 +25,39 @@ class Pv:
         return self.raw.nelm
 
 
-class _PvConnectFuture(Future[Pv]):
-    def _cancel(self) -> None:
-        self.pv.disconnect()
+class Pv(PvBase):
+    "Process variable"
 
-    def _complete(self) -> None:
-        self.set_result(Pv(self.pv))
+    @staticmethod
+    def connect(name: str) -> _Connect:
+        return _Connect(name)
 
-    def _connection_callback(self, pvname: str = "", conn: bool = False, **kw: Any) -> None:
-        assert pvname == self._name
-        if conn:
-            assert self.remove_done_callback(_PvConnectFuture._cancel) == 1
-            loop = self.get_loop()
-            if not loop.is_closed():
-                loop.call_soon_threadsafe(self._complete)
+    async def get(self) -> Any:
+        def caget() -> Any:
+            return self.raw.get(use_monitor=False)
 
-    def __init__(self, name: str) -> None:
-        super().__init__()
-
-        self._name = name
-
-        self.add_done_callback(_PvConnectFuture._cancel)
-        self.pv = epics.PV(
-            name,
-            form="native",
-            auto_monitor=True,
-            connection_callback=self._connection_callback,
-        )
+        await asyncio.get_running_loop().run_in_executor(None, caget)
 
 
-class _PvPutFuture(Future[None]):
+class PvMonitor(PvBase, AsyncIterable[Any]):
+    "Process variable with monitor"
+
+    def __init__(self, raw: epics.PV, monitor: _Monitor) -> None:
+        super().__init__(raw)
+        self._monitor = monitor
+
+    @staticmethod
+    def connect(name: str) -> _ConnectMonitor:
+        return _ConnectMonitor(name)
+
+    def get(self) -> Any:
+        return self.raw.get(use_monitor=True)
+
+    def __aiter__(self) -> _Monitor:
+        return self._monitor
+
+
+class _PutFuture(Future[None]):
     def _complete(self) -> None:
         if not self.done():
             self.set_result(None)
@@ -78,79 +67,80 @@ class _PvPutFuture(Future[None]):
         if not loop.is_closed():
             loop.call_soon_threadsafe(self._complete)
 
-    def __init__(self, pv: Pv, value: Any) -> None:
+    def __init__(self, pv: PvBase, value: Any) -> None:
         super().__init__()
         pv.raw.put(value, wait=False, callback=self._callback)
 
 
-@dataclass
-class _PvMonitorGenerator(AsyncGenerator[Any, None]):
-    pv: Pv
-    loop: AbstractEventLoop
+T = TypeVar("T", bound=PvBase, covariant=True)
 
-    def __post_init__(self) -> None:
-        self._queue: Queue[Any | None] = Queue()
-        self._done = False
+
+class _ConnectBase(Future[T]):
+    def _cancel(self) -> None:
+        self.raw.disconnect()
+
+    def _complete(self) -> None:
+        raise NotImplementedError()
+
+    def _connection_callback(self, pvname: str = "", conn: bool = False, **kw: Any) -> None:
+        assert pvname == self.name
+        if conn:
+            assert self.remove_done_callback(_ConnectBase._cancel) == 1
+            loop = self.get_loop()
+            if not loop.is_closed():
+                loop.call_soon_threadsafe(self._complete)
+
+    def __init__(self, name: str, raw: epics.PV) -> None:
+        self.name = name
+        self.raw = raw
+        self.add_done_callback(_ConnectBase._cancel)
+
+
+class _Connect(_ConnectBase[Pv]):
+    def _complete(self) -> None:
+        self.set_result(Pv(self.raw))
+
+    def __init__(self, name: str) -> None:
+        super().__init__(
+            name,
+            epics.PV(
+                name,
+                form="native",
+                auto_monitor=False,
+                connection_callback=self._connection_callback,
+            ),
+        )
+
+
+class _ConnectMonitor(_ConnectBase[PvMonitor]):
+    def _complete(self) -> None:
+        self.set_result(PvMonitor(self.raw, self.values))
+
+    def __init__(self, name: str) -> None:
+        self.values = _Monitor(loop=self.get_loop())
+        super().__init__(
+            name,
+            epics.PV(
+                name,
+                form="native",
+                auto_monitor=epics.dbr.DBE_VALUE,
+                connection_callback=self._connection_callback,
+                callback=self.values._callback,
+            ),
+        )
+
+
+class _Monitor(AsyncIterator[Any]):
+    def __init__(self, loop: AbstractEventLoop) -> None:
+        self._loop = loop
+        self._queue: Queue[Any] = Queue()
 
     def _callback(self, value: Any = None, **kw: Any) -> None:
-        if not self.loop.is_closed() and not self._done:
-            self.loop.call_soon_threadsafe(lambda: self._queue.put_nowait(value))
-
-    def _cancel(self) -> None:
-        self._done = True
-        self._queue.put_nowait(None)
-
-    def __aiter__(self) -> AsyncGenerator[Any, None]:
-        return self
+        if not self._loop.is_closed():
+            self._loop.call_soon_threadsafe(lambda: self._queue.put_nowait(value))
 
     async def __anext__(self) -> Any:
-        value = await self._queue.get()
-        if not self._done:
-            assert value is not None
-            return value
-        else:
-            assert value is None
-            raise StopAsyncIteration()
+        return await self._queue.get()
 
-    async def aclose(self) -> None:
-        self._cancel()
-
-    async def asend(self, value: Any) -> Any:
-        return await self.__anext__()
-
-    async def athrow(
-        self,
-        exc_type: BaseException | Type[BaseException],
-        exc_value: Optional[object] = None,
-        *args: Any,
-        **kws: Any,
-    ) -> Any:
-        if not self._done:
-            self._cancel()
-            if isinstance(exc_type, BaseException):
-                raise exc_type
-            elif exc_value is not None:
-                assert isinstance(exc_value, BaseException)
-                raise exc_value
-            else:
-                raise exc_type()
-
-
-@dataclass
-class _PvMonitorContextManager(AsyncContextManager[_PvMonitorGenerator]):
-    pv: Pv
-    ret_cur: bool
-    gen: _PvMonitorGenerator | None = None
-
-    async def __aenter__(self) -> _PvMonitorGenerator:
-        assert self.gen is None
-        self.gen = _PvMonitorGenerator(self.pv, asyncio.get_running_loop())
-        self.pv.raw.add_callback(self.gen._callback)
-        if self.ret_cur:
-            self.pv.raw.run_callbacks()
-        return self.gen
-
-    async def __aexit__(self, *args: Any) -> None:
-        assert self.gen is not None
-        self.pv.raw.remove_callback(self.gen._callback)
-        self.gen = None
+    def __aiter__(self) -> _Monitor:
+        return self
