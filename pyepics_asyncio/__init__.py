@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, AsyncIterable, AsyncIterator, TypeVar
+from typing import Any, AsyncIterable, AsyncIterator, Awaitable, TypeVar
 
 import asyncio
 from asyncio import AbstractEventLoop, Future, Queue
@@ -29,7 +29,7 @@ class Pv(PvBase):
     "Process variable"
 
     @staticmethod
-    def connect(name: str) -> _Connect:
+    def connect(name: str) -> Awaitable[Pv]:
         return _Connect(name)
 
     async def get(self) -> Any:
@@ -47,13 +47,13 @@ class PvMonitor(PvBase, AsyncIterable[Any]):
         self._monitor = monitor
 
     @staticmethod
-    def connect(name: str) -> _ConnectMonitor:
+    def connect(name: str) -> Awaitable[PvMonitor]:
         return _ConnectMonitor(name)
 
     def get(self) -> Any:
         return self.raw.get(use_monitor=True)
 
-    def __aiter__(self) -> _Monitor:
+    def __aiter__(self) -> AsyncIterator[Any]:
         return self._monitor
 
 
@@ -91,6 +91,7 @@ class _ConnectBase(Future[T]):
                 loop.call_soon_threadsafe(self._complete)
 
     def __init__(self, name: str, raw: epics.PV) -> None:
+        super().__init__()
         self.name = name
         self.raw = raw
         self.add_done_callback(_ConnectBase._cancel)
@@ -117,7 +118,7 @@ class _ConnectMonitor(_ConnectBase[PvMonitor]):
         self.set_result(PvMonitor(self.raw, self.values))
 
     def __init__(self, name: str) -> None:
-        self.values = _Monitor(loop=self.get_loop())
+        self.values = _Monitor(loop=asyncio.get_running_loop())
         super().__init__(
             name,
             epics.PV(
@@ -132,6 +133,7 @@ class _ConnectMonitor(_ConnectBase[PvMonitor]):
 
 class _Monitor(AsyncIterator[Any]):
     def __init__(self, loop: AbstractEventLoop) -> None:
+        super().__init__()
         self._loop = loop
         self._queue: Queue[Any] = Queue()
 
