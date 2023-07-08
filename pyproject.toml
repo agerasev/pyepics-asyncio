@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyepics-asyncio"
-version = "0.2.0"
+version = "0.2.1"
 description = "Async/await wrapper for PyEpics"
 homepage = "https://github.com/agerasev/pyepics-asyncio"
 repository = "https://github.com/agerasev/pyepics-asyncio"
@@ -20,9 +20,8 @@ python = "^3.9"
 pyepics = "^3.5.1"
 
 [tool.poetry.dev-dependencies]
-black = "^22.1.0"
-mypy = "^0.942"
-numpy = "^1.22.3"
+mypy = "^1.4.1"
+black = "^23.3.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

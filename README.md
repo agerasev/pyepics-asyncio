@@ -2,26 +2,31 @@
 
 Simple `async`/`await` wrapper for [PyEpics](https://github.com/pyepics/pyepics).
 
-Currently there is a wrapper only for `PV` class.
+## Overview
+
+There are two main types:
++ `PvMonitor` - subscribed to PV updates, `get` returns last received value.
++ `Pv` - connected but not subscribed, each `get` requests PV value over network.
 
 ## Usage
-
-### Import
-
-```python
-from pyepics_asyncio import Pv
-```
-
-### Connect to PV
-
-```python
-pv = await Pv.connect("pvname")
-```
 
 ### Read PV value
 
 ```python
+from pyepics_asyncio import Pv
+
+pv = await Pv.connect("pvname")
 print(await pv.get())
+```
+
+### Monitor PV
+
+```python
+from pyepics_asyncio import PvMonitor
+
+pv = await PvMonitor.connect("pvname")
+async for value in pv:
+    print(value)
 ```
 
 ### Write value to PV
@@ -29,14 +34,3 @@ print(await pv.get())
 ```python
 await pv.put(3.1415)
 ```
-
-### Monitor PV
-
-```python
-async with pv.monitor() as mon:
-    async for value in mon:
-        print(value)
-```
-
-*NOTE: By default values are yielded only on PV update.*
-*If you need monitor to also provide current value on start use `pv.monitor(current=True)`.*

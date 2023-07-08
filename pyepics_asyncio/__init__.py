@@ -72,7 +72,7 @@ class _PutFuture(Future[None]):
         pv.raw.put(value, wait=False, callback=self._callback)
 
 
-T = TypeVar("T", bound=PvBase, covariant=True)
+T = TypeVar("T", bound=PvBase)
 
 
 class _ConnectBase(Future[T]):
