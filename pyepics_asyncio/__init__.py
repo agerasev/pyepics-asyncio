@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import Any, AsyncIterable, AsyncIterator, Awaitable, TypeVar
+from typing import Any, List, AsyncIterable, AsyncIterator, Awaitable, TypeVar
 
 import asyncio
-from asyncio import AbstractEventLoop, Future, Queue
+from asyncio import AbstractEventLoop, Future, Event
+from threading import Lock
 
 import epics  # type: ignore
 
@@ -157,14 +158,28 @@ class _Monitor(AsyncIterator[Any]):
     def __init__(self, loop: AbstractEventLoop) -> None:
         super().__init__()
         self._loop = loop
-        self._queue: Queue[Any] = Queue()
+        self._event = Event()
+        self._lock = Lock()
+        self._values: List[Any] = [None, None]
 
     def _callback(self, value: Any = None, **kw: Any) -> None:
+        with self._lock:
+            if self._values[0] is None:
+                self._values[0] = value
+            else:
+                self._values[1] = value
+
         if not self._loop.is_closed():
-            self._loop.call_soon_threadsafe(lambda: self._queue.put_nowait(value))
+            self._loop.call_soon_threadsafe(self._event.set)
 
     async def __anext__(self) -> Any:
-        return await self._queue.get()
+        while True:
+            with self._lock:
+                (value, *self._values) = (*self._values, None)
+                self._event.clear()
+            if value is not None:
+                return value
+            await self._event.wait()
 
     def __aiter__(self) -> _Monitor:
         return self

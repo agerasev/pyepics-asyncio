@@ -26,6 +26,7 @@ async def test_scalar() -> None:
 async def test_scalar_monitor() -> None:
     rng = random.Random(SEED)
     values = [rng.gauss(0.0, 1.0) for i in range(0, ATTEMPTS)]
+    bar = asyncio.Barrier(2)
 
     async def monitor(pv: PvMonitor) -> None:
         i = 0
@@ -34,6 +35,7 @@ async def test_scalar_monitor() -> None:
             i += 1
             if i >= len(values):
                 break
+            await bar.wait()
 
     output = await Pv.connect("ca:test:ao")
     await output.put(values[0])
@@ -42,6 +44,7 @@ async def test_scalar_monitor() -> None:
     task = asyncio.get_running_loop().create_task(monitor(input))
 
     for value in values[1:]:
+        await bar.wait()
         await output.put(value)
 
     await task
@@ -68,6 +71,7 @@ async def test_array_monitor() -> None:
 
     rng = random.Random(SEED)
     values = [[rng.randint(-(2**31), 2**31 - 1) for j in range(0, rng.randint(2, max_len))] for i in range(0, ATTEMPTS)]
+    bar = asyncio.Barrier(2)
 
     async def monitor(pv: PvMonitor) -> None:
         i = 0
@@ -76,6 +80,7 @@ async def test_array_monitor() -> None:
             i += 1
             if i >= len(values):
                 break
+            await bar.wait()
 
     await output.put(values[0])
 
@@ -83,6 +88,7 @@ async def test_array_monitor() -> None:
     task = asyncio.get_running_loop().create_task(monitor(input))
 
     for value in values[1:]:
+        await bar.wait()
         await output.put(value)
 
     await task
