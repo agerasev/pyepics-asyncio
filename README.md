@@ -34,3 +34,11 @@ async for value in pv:
 ```python
 await pv.put(3.1415)
 ```
+
+## Testing
+
+To run tests you need to have dummy IOC running (located in `ioc` dir):
+
++ Set appropriate `EPICS_BASE` path in `configure/RELEASE`.
++ Build with `make`.
++ Go to `iocBoot/iocTest/` and run script `st.cmd` and don't stop it.
