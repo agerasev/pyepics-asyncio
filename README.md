@@ -10,29 +10,31 @@ There are two main types:
 
 ## Usage
 
-### Read PV value
+### Connect to PV
 
 ```python
 from pyepics_asyncio import Pv
 
 pv = await Pv.connect("pvname")
-print(await pv.get())
-```
-
-### Monitor PV
-
-```python
-from pyepics_asyncio import PvMonitor
-
-pv = await PvMonitor.connect("pvname")
-async for value in pv:
-    print(value)
 ```
 
 ### Write value to PV
 
 ```python
 await pv.put(3.1415)
+```
+
+### Read value from PV
+
+```python
+print(await pv.get())
+```
+
+### Monitor PV value updates
+
+```python
+async for value in pv:
+    print(value)
 ```
 
 ## Testing

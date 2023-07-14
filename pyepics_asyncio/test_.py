@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 import asyncio
-from pyepics_asyncio import Pv, PvMonitor
+from pyepics_asyncio import Pv
 import pytest
 
 ATTEMPTS = 256
@@ -28,7 +28,7 @@ async def test_scalar_monitor() -> None:
     values = [rng.gauss(0.0, 1.0) for i in range(0, ATTEMPTS)]
     bar = asyncio.Barrier(2)
 
-    async def monitor(pv: PvMonitor) -> None:
+    async def monitor(pv: Pv) -> None:
         i = 0
         async for value in pv:
             assert value == values[i]
@@ -40,7 +40,7 @@ async def test_scalar_monitor() -> None:
     output = await Pv.connect("ca:test:ao")
     await output.put(values[0])
 
-    input = await PvMonitor.connect("ca:test:ai")
+    input = await Pv.connect("ca:test:ai")
     task = asyncio.get_running_loop().create_task(monitor(input))
 
     for value in values[1:]:
@@ -73,7 +73,7 @@ async def test_array_monitor() -> None:
     values = [[rng.randint(-(2**31), 2**31 - 1) for j in range(0, rng.randint(2, max_len))] for i in range(0, ATTEMPTS)]
     bar = asyncio.Barrier(2)
 
-    async def monitor(pv: PvMonitor) -> None:
+    async def monitor(pv: Pv) -> None:
         i = 0
         async for value in pv:
             assert list(value) == values[i]
@@ -84,7 +84,7 @@ async def test_array_monitor() -> None:
 
     await output.put(values[0])
 
-    input = await PvMonitor.connect("ca:test:aai")
+    input = await Pv.connect("ca:test:aai")
     task = asyncio.get_running_loop().create_task(monitor(input))
 
     for value in values[1:]:
