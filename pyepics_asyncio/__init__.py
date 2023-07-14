@@ -111,26 +111,27 @@ class _ConnectBase(Future[T]):
             if not loop.is_closed():
                 loop.call_soon_threadsafe(self._complete)
 
-    def __init__(self, name: str, raw: epics.PV) -> None:
+    def __init__(self, name: str) -> None:
         super().__init__()
         self.name = name
-        self.raw = raw
+        self.raw = epics.PV.__new__(epics.PV)
         self.add_done_callback(_ConnectBase._cancel)
+        self.__init_raw__(self.raw)
+
+    def __init_raw__(self, raw: epics.PV) -> None:
+        raise NotImplementedError()
 
 
 class _Connect(_ConnectBase[Pv]):
     def _complete(self) -> None:
         self.set_result(Pv(self.raw))
 
-    def __init__(self, name: str) -> None:
-        super().__init__(
-            name,
-            epics.PV(
-                name,
-                form="native",
-                auto_monitor=False,
-                connection_callback=self._connection_callback,
-            ),
+    def __init_raw__(self, raw: epics.PV) -> None:
+        raw.__init__(
+            self.name,
+            form="native",
+            auto_monitor=False,
+            connection_callback=self._connection_callback,
         )
 
 
@@ -140,15 +141,15 @@ class _ConnectMonitor(_ConnectBase[PvMonitor]):
 
     def __init__(self, name: str) -> None:
         self.values = _Monitor(loop=asyncio.get_running_loop())
-        super().__init__(
-            name,
-            epics.PV(
-                name,
-                form="native",
-                auto_monitor=epics.dbr.DBE_VALUE,
-                connection_callback=self._connection_callback,
-                callback=self.values._callback,
-            ),
+        super().__init__(name)
+
+    def __init_raw__(self, raw: epics.PV) -> None:
+        raw.__init__(
+            self.name,
+            form="native",
+            auto_monitor=epics.dbr.DBE_VALUE,
+            connection_callback=self._connection_callback,
+            callback=self.values._callback,
         )
 
 
