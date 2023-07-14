@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyepics-asyncio"
-version = "0.2.1"
+version = "0.2.2"
 description = "Async/await wrapper for PyEpics"
 homepage = "https://github.com/agerasev/pyepics-asyncio"
 repository = "https://github.com/agerasev/pyepics-asyncio"
