@@ -33,13 +33,17 @@ class Pv:
         return _Put(self, value)
 
     def get(self) -> Awaitable[Any]:
-        if self.raw.auto_monitor is False:
+        if not self.monitoring:
             return _Get(self)
         else:
             return _lazy(self._get_from_monitor)
 
     def _get_from_monitor(self) -> Any:
         return self.raw.get(use_monitor=True)
+
+    @property
+    def monitoring(self) -> bool:
+        return self.raw.auto_monitor is not False
 
     def monitor(self) -> ContextManager[AsyncIterator[Any]]:
         return _Monitor._guarded(self.raw)
@@ -132,7 +136,7 @@ class _Monitor(Pv, AsyncIterator[Any]):
         self._event = Event()
         self._lock = Lock()
 
-        if self.raw.auto_monitor is False:
+        if not self.monitoring:
             self.raw.auto_monitor = epics.dbr.DBE_VALUE
             value = None
         else:

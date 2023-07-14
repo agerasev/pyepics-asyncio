@@ -128,6 +128,7 @@ async def test_multiple_monitors() -> None:
 
     await out.put(0.0)
     await asyncio.sleep(DELAY)
+    assert not in_.monitoring
 
     task0 = loop.create_task(assert_monitor(in_, values[0] + values[1]))
     skip = loop.create_task(skip_barrier(ATTEMPTS))
@@ -136,6 +137,7 @@ async def test_multiple_monitors() -> None:
         await out.put(value)
     await skip
     await asyncio.sleep(DELAY)
+    assert in_.monitoring
 
     task1 = loop.create_task(assert_monitor(in_, values[1] + values[2]))
     for value in values[1]:
@@ -143,6 +145,7 @@ async def test_multiple_monitors() -> None:
         await out.put(value)
     await task0
     await asyncio.sleep(DELAY)
+    assert in_.monitoring
 
     skip = loop.create_task(skip_barrier(ATTEMPTS))
     for value in values[2]:
@@ -151,6 +154,7 @@ async def test_multiple_monitors() -> None:
     await task1
     await skip
     await asyncio.sleep(DELAY)
+    assert not in_.monitoring
 
     task2 = loop.create_task(assert_monitor(in_, values[3]))
     skip = loop.create_task(skip_barrier(ATTEMPTS))
@@ -160,3 +164,4 @@ async def test_multiple_monitors() -> None:
     await task2
     await skip
     await asyncio.sleep(DELAY)
+    assert not in_.monitoring
