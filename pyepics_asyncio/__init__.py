@@ -1,14 +1,15 @@
 from __future__ import annotations
-from typing import Any, List, AsyncIterable, AsyncIterator, Awaitable
+from typing import Any, List, Callable, Iterator, AsyncIterable, AsyncIterator, Awaitable, ContextManager
 
 import asyncio
 from asyncio import AbstractEventLoop, Future, Event
 from threading import Lock
+from contextlib import contextmanager
 
 import epics  # type: ignore
 
 
-class Pv(AsyncIterable[Any]):
+class Pv:
     "Process variable"
 
     def __init__(self, raw: epics.PV) -> None:
@@ -32,13 +33,16 @@ class Pv(AsyncIterable[Any]):
         return _Put(self, value)
 
     def get(self) -> Awaitable[Any]:
-        return _Get(self)
+        if self.raw.auto_monitor is False:
+            return _Get(self)
+        else:
+            return _lazy(self._get_from_monitor)
 
-    def monitor(self) -> AsyncIterator[Any]:
-        return _Monitor(self.raw)
+    def _get_from_monitor(self) -> Any:
+        return self.raw.get(use_monitor=True)
 
-    def __aiter__(self) -> AsyncIterator[Any]:
-        return self.monitor()
+    def monitor(self) -> ContextManager[AsyncIterator[Any]]:
+        return _Monitor._guarded(self.raw)
 
 
 class _Connect(Future[Pv]):
@@ -123,16 +127,28 @@ class _Monitor(Pv, AsyncIterator[Any]):
             loop.call_soon_threadsafe(self._event.set)
 
     def __init__(self, raw: epics.PV) -> None:
+        super().__init__(raw)
         self._loop: AbstractEventLoop | None = None
         self._event = Event()
         self._lock = Lock()
-        self._values: List[Any] = [None, None]
-        super().__init__(raw)
-        self.raw.add_callback(self._callback)
-        self.raw.auto_monitor = epics.dbr.DBE_VALUE
+
+        if self.raw.auto_monitor is False:
+            self.raw.auto_monitor = epics.dbr.DBE_VALUE
+            value = None
+        else:
+            value = self._get_from_monitor()
+            self._event.set()
+
+        self._values: List[Any] = [value, None]
+        self._index = self.raw.add_callback(self._callback, id(self))
+
+    def close(self) -> None:
+        self.raw.remove_callback(self._index)
+        if len(self.raw.callbacks) == 0:
+            self.raw.auto_monitor = False
 
     async def get(self) -> Any:
-        return self.raw.get(use_monitor=True)
+        return self._get_from_monitor()
 
     async def __anext__(self) -> Any:
         while True:
@@ -146,3 +162,15 @@ class _Monitor(Pv, AsyncIterator[Any]):
 
     def __aiter__(self) -> _Monitor:
         return self
+
+    @contextmanager
+    def _guarded(raw: epics.PV) -> Iterator[_Monitor]:
+        mon = _Monitor(raw)
+        try:
+            yield mon
+        finally:
+            mon.close()
+
+
+async def _lazy(callable: Callable[[], Any]) -> Any:
+    return callable()

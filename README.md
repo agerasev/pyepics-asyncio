@@ -33,8 +33,9 @@ print(await pv.get())
 ### Monitor PV value updates
 
 ```python
-async for value in pv:
-    print(value)
+with pv.monitor() as mon:
+    async for value in mon:
+        print(value)
 ```
 
 ## Testing
