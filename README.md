@@ -42,3 +42,5 @@ To run tests you need to have dummy IOC running (located in `ioc` dir):
 + Set appropriate `EPICS_BASE` path in `configure/RELEASE`.
 + Build with `make`.
 + Go to `iocBoot/iocTest/` and run script `st.cmd` and don't stop it.
+
+In separate shell run `poetry run pytest --verbose`.
