@@ -32,11 +32,8 @@ class Pv(PvBase):
     def connect(name: str) -> Awaitable[Pv]:
         return _Connect(name)
 
-    async def get(self) -> Any:
-        def caget() -> Any:
-            return self.raw.get(use_monitor=False)
-
-        await asyncio.get_running_loop().run_in_executor(None, caget)
+    def get(self) -> _GetFuture:
+        return _GetFuture(self)
 
 
 class PvMonitor(PvBase, AsyncIterable[Any]):
@@ -72,6 +69,29 @@ class _PutFuture(Future[None]):
         pv.raw.put(value, wait=False, callback=self._callback)
 
 
+class _GetFuture(Future[Any]):
+    def _complete(self, value: Any) -> None:
+        if not self.done():
+            self.set_result(value)
+
+    def _clear(self) -> None:
+        self.raw.clear_auto_monitor()
+        self.raw.clear_callbacks()
+
+    def _callback(self, value: Any, **kw: Any) -> None:
+        self._clear()
+        loop = self.get_loop()
+        if not loop.is_closed():
+            loop.call_soon_threadsafe(lambda: self._complete(value))
+
+    def __init__(self, pv: PvBase) -> None:
+        super().__init__()
+        self.raw = pv.raw
+        self.raw.add_callback(self._callback)
+        self.add_done_callback(_GetFuture._clear)
+        self.raw.auto_monitor = epics.dbr.DBE_VALUE
+
+
 T = TypeVar("T", bound=PvBase)
 
 
@@ -85,6 +105,7 @@ class _ConnectBase(Future[T]):
     def _connection_callback(self, pvname: str = "", conn: bool = False, **kw: Any) -> None:
         assert pvname == self.name
         if conn:
+            self.raw.connection_callbacks.clear()
             assert self.remove_done_callback(_ConnectBase._cancel) == 1
             loop = self.get_loop()
             if not loop.is_closed():
