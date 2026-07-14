@@ -64,6 +64,7 @@ class _Connect(Future[Pv]):
     def __init__(self, name: str) -> None:
         super().__init__()
         self.name = name
+        self._raw_disconnected = False
         self.raw = epics.PV.__new__(epics.PV)
         self.raw.__init__(
             self.name,
@@ -73,10 +74,15 @@ class _Connect(Future[Pv]):
         )
         self.add_done_callback(_Connect._on_cancel)
 
+    def __del__(self) -> None:
+        if not self.done() and not self._raw_disconnected:
+            self.raw.disconnect()
+
     @staticmethod
     def _on_cancel(fut: _Connect) -> None:
         if fut.cancelled():
             fut.raw.disconnect()
+            fut._raw_disconnected = True
 
 
 class _Put(Future[None]):
