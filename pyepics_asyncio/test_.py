@@ -9,12 +9,13 @@ import pytest
 ATTEMPTS = 256
 SEED = 0xDEADBEFF
 DELAY = 0.01
+TIMEOUT = 5.0
 
 
 @pytest.mark.asyncio
 async def test_scalar() -> None:
-    in_ = await Pv.connect("ca:test:ai")
-    out = await Pv.connect("ca:test:ao")
+    in_ = await asyncio.wait_for(Pv.connect("ca:test:ai"), TIMEOUT)
+    out = await asyncio.wait_for(Pv.connect("ca:test:ao"), TIMEOUT)
 
     rng = random.Random(SEED)
     for i in range(0, ATTEMPTS):
@@ -25,8 +26,8 @@ async def test_scalar() -> None:
 
 @pytest.mark.asyncio
 async def test_scalar_monitor() -> None:
-    in_ = await Pv.connect("ca:test:ai")
-    out = await Pv.connect("ca:test:ao")
+    in_ = await asyncio.wait_for(Pv.connect("ca:test:ai"), TIMEOUT)
+    out = await asyncio.wait_for(Pv.connect("ca:test:ao"), TIMEOUT)
 
     rng = random.Random(SEED)
     values = [rng.gauss(0.0, 1.0) for i in range(0, ATTEMPTS)]
@@ -56,8 +57,8 @@ async def test_scalar_monitor() -> None:
 
 @pytest.mark.asyncio
 async def test_array() -> None:
-    in_ = await Pv.connect("ca:test:aai")
-    out = await Pv.connect("ca:test:aao")
+    in_ = await asyncio.wait_for(Pv.connect("ca:test:aai"), TIMEOUT)
+    out = await asyncio.wait_for(Pv.connect("ca:test:aao"), TIMEOUT)
     max_len = out.nelm
 
     rng = random.Random(SEED)
@@ -69,8 +70,8 @@ async def test_array() -> None:
 
 @pytest.mark.asyncio
 async def test_array_monitor() -> None:
-    in_ = await Pv.connect("ca:test:aai")
-    out = await Pv.connect("ca:test:aao")
+    in_ = await asyncio.wait_for(Pv.connect("ca:test:aai"), TIMEOUT)
+    out = await asyncio.wait_for(Pv.connect("ca:test:aao"), TIMEOUT)
     max_len = out.nelm
 
     rng = random.Random(SEED)
@@ -103,8 +104,8 @@ async def test_array_monitor() -> None:
 async def test_multiple_monitors() -> None:
     loop = asyncio.get_running_loop()
 
-    in_ = await Pv.connect("ca:test:ai")
-    out = await Pv.connect("ca:test:ao")
+    in_ = await asyncio.wait_for(Pv.connect("ca:test:ai"), TIMEOUT)
+    out = await asyncio.wait_for(Pv.connect("ca:test:ao"), TIMEOUT)
 
     rng = random.Random(SEED)
     values = [[rng.gauss(0.0, 1.0) for i in range(0, ATTEMPTS)] for k in range(0, 4)]
