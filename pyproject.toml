@@ -1,12 +1,10 @@
-[tool.poetry]
+[project]
 name = "pyepics-asyncio"
 version = "0.3.0"
 description = "Async/await wrapper for PyEpics"
-homepage = "https://github.com/agerasev/pyepics-asyncio"
-repository = "https://github.com/agerasev/pyepics-asyncio"
-authors = ["Alexey Gerasev <alexey.gerasev@gmail.com>"]
-license = "MIT"
+license = {text = "MIT"}
 readme = "README.md"
+authors = [{name = "Alexey Gerasev", email = "alexey.gerasev@gmail.com"}]
 keywords = ["pyepics", "epics", "asyncio", "async", "await"]
 classifiers = [
     'Intended Audience :: Science/Research',
@@ -14,20 +12,29 @@ classifiers = [
     'Programming Language :: Python',
     'Topic :: Scientific/Engineering',
 ]
+requires-python = ">=3.9"
+dependencies = [
+    "pyepics>=3.5.1,<4",
+]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-pyepics = "^3.5.1"
+[project.urls]
+Homepage = "https://github.com/agerasev/pyepics-asyncio"
+Repository = "https://github.com/agerasev/pyepics-asyncio"
 
-[tool.poetry.dev-dependencies]
-mypy = "^1.4.1"
-black = "^23.3.0"
-pytest = "^7.4.0"
-pytest-asyncio = "^0.21.1"
+[dependency-groups]
+dev = [
+    "mypy>=1.4.1,<2",
+    "black>=23.3.0,<24",
+    "pytest>=7.4.0,<8",
+    "pytest-asyncio>=0.21.1,<1",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pyepics_asyncio"]
 
 [tool.black]
 line-length = 128
