@@ -1,12 +1,20 @@
 from __future__ import annotations
-from typing import Any, List, Callable, Iterator, AsyncIterable, AsyncIterator, Awaitable, ContextManager
+from typing import (
+    Any,
+    List,
+    Callable,
+    Iterator,
+    AsyncIterator,
+    Awaitable,
+    ContextManager,
+)
 
 import asyncio
 from asyncio import AbstractEventLoop, Future, Event
 from threading import Lock
 from contextlib import contextmanager
 
-import epics  # type: ignore
+import epics
 
 
 class Pv:

@@ -63,7 +63,9 @@ async def test_array() -> None:
 
     rng = random.Random(SEED)
     for i in range(0, ATTEMPTS):
-        value = [rng.randint(-(2**31), 2**31 - 1) for i in range(0, rng.randint(2, max_len))]
+        value = [
+            rng.randint(-(2**31), 2**31 - 1) for i in range(0, rng.randint(2, max_len))
+        ]
         await out.put(value)
         assert list(await in_.get()) == value
 
@@ -75,7 +77,10 @@ async def test_array_monitor() -> None:
     max_len = out.nelm
 
     rng = random.Random(SEED)
-    values = [[rng.randint(-(2**31), 2**31 - 1) for j in range(0, rng.randint(2, max_len))] for i in range(0, ATTEMPTS)]
+    values = [
+        [rng.randint(-(2**31), 2**31 - 1) for j in range(0, rng.randint(2, max_len))]
+        for i in range(0, ATTEMPTS)
+    ]
     bar = asyncio.Barrier(2)
 
     async def assert_monitor(pv: Pv) -> None:
