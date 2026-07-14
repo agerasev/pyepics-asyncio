@@ -137,7 +137,6 @@ class _Monitor(Pv, AsyncIterator[Any]):
         self._lock = Lock()
 
         if not self.monitoring:
-            self.raw.auto_monitor = epics.dbr.DBE_VALUE
             value = None
         else:
             value = self._get_from_monitor()
@@ -145,6 +144,9 @@ class _Monitor(Pv, AsyncIterator[Any]):
 
         self._values: List[Any] = [value, None]
         self._index = self.raw.add_callback(self._callback, id(self))
+
+        if not self.monitoring:
+            self.raw.auto_monitor = epics.dbr.DBE_VALUE
 
     def close(self) -> None:
         self.raw.remove_callback(self._index)
