@@ -50,25 +50,20 @@ class Pv:
 
 
 class _Connect(Future[Pv]):
-    def _cancel(self) -> None:
-        self.raw.disconnect()
-
-    def _complete(self) -> None:
-        self.set_result(Pv(self.raw))
-
     def _connection_callback(self, pvname: str, conn: bool = False, **kw: Any) -> None:
         assert pvname == self.name
         if conn:
-            self.raw.connection_callbacks.clear()
-            assert self.remove_done_callback(_Connect._cancel) == 1
             loop = self.get_loop()
             if not loop.is_closed():
                 loop.call_soon_threadsafe(self._complete)
 
+    def _complete(self) -> None:
+        if not self.done():
+            self.set_result(Pv(self.raw))
+
     def __init__(self, name: str) -> None:
         super().__init__()
         self.name = name
-        self.add_done_callback(_Connect._cancel)
         self.raw = epics.PV.__new__(epics.PV)
         self.raw.__init__(
             self.name,
@@ -76,6 +71,12 @@ class _Connect(Future[Pv]):
             auto_monitor=False,
             connection_callback=self._connection_callback,
         )
+        self.add_done_callback(_Connect._on_cancel)
+
+    @staticmethod
+    def _on_cancel(fut: _Connect) -> None:
+        if fut.cancelled():
+            fut.raw.disconnect()
 
 
 class _Put(Future[None]):
